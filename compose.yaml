@@ -1,0 +1,26 @@
+services:
+  flight-board:
+    image: python:3.12-slim
+    working_dir: /app
+    command: ["python", "-B", "dashboard.py"]
+    ports:
+      - "127.0.0.1:18473:8000"
+    volumes:
+      - ./app.py:/app/app.py:ro
+      - ./dashboard.py:/app/dashboard.py:ro
+      - ./dashboard.html:/app/dashboard.html:ro
+      - ./opensky_auth.py:/app/opensky_auth.py:ro
+      - ./credentials.json:/run/secrets/opensky.json:ro
+    environment:
+      PYTHONUNBUFFERED: "1"
+      FLIGHT_BOARD_LOCATION: ${FLIGHT_BOARD_LOCATION:-Seattle, WA}
+      FLIGHT_BOARD_LATITUDE: ${FLIGHT_BOARD_LATITUDE:-47.6062}
+      FLIGHT_BOARD_LONGITUDE: ${FLIGHT_BOARD_LONGITUDE:--122.3321}
+      FLIGHT_BOARD_RADIUS_MILES: ${FLIGHT_BOARD_RADIUS_MILES:-25}
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    user: "10001:10001"

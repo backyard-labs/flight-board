@@ -1,0 +1,658 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Local Flight Board</title>
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #090f18;
+  --panel: #121e2b;
+  --border: #2a3b4f;
+  --text: #edf4fc;
+  --muted: #97aabf;
+  --accent: #84efc2;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, sans-serif;
+}
+main {
+  width: min(1240px, 100%);
+  margin: 0 auto;
+  padding: 38px 24px;
+}
+header, .toolbar, .paging, .card-top, footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  color: var(--accent);
+}
+h1 {
+  font-size: clamp(25px, 4vw, 38px);
+  letter-spacing: -1px;
+  margin: 8px 0;
+}
+.subtitle, footer {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.7;
+}
+#status {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 12px;
+  color: var(--accent);
+}
+#status.warning { color: #ffd18b; }
+.toolbar {
+  margin: 28px 0 20px;
+  padding: 15px 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.views { display: flex; gap: 6px; }
+button {
+  background: #142232;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  color: var(--text);
+  padding: 10px 16px;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+button:hover { border-color: var(--accent); }
+button:focus-visible, input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+}
+button[aria-pressed="true"] {
+  background: var(--accent);
+  color: #08251b;
+  border-color: var(--accent);
+  font-weight: 700;
+}
+button:disabled { opacity: .4; cursor: default; }
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--muted);
+  font-size: 13px;
+}
+input { accent-color: var(--accent); }
+#grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+.card {
+  min-width: 0;
+  min-height: 280px;
+  padding: 25px;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  background: var(--panel);
+}
+.card-top {
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 1.5px;
+}
+.tag { color: var(--accent); letter-spacing: 1px; }
+.callsign {
+  margin: 22px 0 8px;
+  color: var(--accent);
+  font: bold clamp(30px, 4.5vw, 49px) ui-monospace, monospace;
+  overflow-wrap: anywhere;
+}
+.callsign canvas { display: none; }
+.aircraft-note {
+  color: var(--muted);
+  font-size: 12px;
+  min-height: 18px;
+}
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+.metrics > div { min-width: 0; }
+.label {
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  margin-bottom: 10px;
+}
+.value {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 7px;
+  font: bold clamp(18px, 2.2vw, 25px) ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+}
+.number { white-space: nowrap; }
+.unit {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--muted);
+}
+.unavailable {
+  color: var(--muted);
+  font-size: 14px;
+}
+.empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  text-align: center;
+  color: var(--muted);
+}
+.empty strong { font-size: 22px; color: var(--text); }
+.empty p { font-size: 13px; }
+.paging { margin: 24px 0; }
+.page-buttons { display: flex; gap: 10px; }
+#page-info { color: var(--muted); font-size: 13px; }
+#error {
+  color: #ffd18b;
+  font-size: 13px;
+  line-height: 1.6;
+}
+#error:empty { display: none; }
+footer {
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+  align-items: flex-start;
+}
+.foot-right { text-align: right; }
+#credits { color: var(--accent); }
+#credits.low { color: #ffd18b; }
+
+/* Clean LED view: solid panels, sharp callsigns, readable measurements. */
+body.led {
+  --bg: #080a09;
+  --panel: #090d0b;
+  --border: #303a33;
+  --accent: #94efa5;
+  --muted: #a3b1a7;
+}
+.led .card {
+  border: 3px solid #303a33;
+  border-radius: 7px;
+  background: #090d0b;
+}
+.led .callsign {
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  margin: 25px 0 15px;
+}
+.led .callsign .plain {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+.led .callsign canvas {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+.led .label {
+  color: #b9c4bc;
+  font-family: ui-monospace, monospace;
+}
+.led .value { color: #f1c978; }
+.led .unit { color: #c3ae87; }
+.led .tag { color: #94efa5; }
+.led .metrics { border-color: #2c3830; }
+
+@media(max-width: 720px) {
+  main { padding: 24px 16px; }
+  #grid { grid-template-columns: 1fr; }
+  .card { min-height: 250px; }
+  .callsign { font-size: 38px; }
+  .value { font-size: 23px; }
+  .foot-right { text-align: left; }
+}
+@media(max-width: 380px) {
+  .card { padding: 18px; }
+  .metrics { gap: 10px; }
+  .value { font-size: 19px; }
+}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <div class="eyebrow">LOCAL AIRSPACE</div>
+      <h1>Local Flight Board</h1>
+      <div class="subtitle">
+        Within <span id="radius-miles">25 miles</span> of
+        <span class="location-name">Seattle, WA</span>
+      </div>
+    </div>
+    <div id="status" role="status">Connecting to local feed…</div>
+  </header>
+
+  <div class="toolbar">
+    <div class="views" role="group" aria-label="Display style">
+      <button id="dashboard-view" aria-pressed="true">Dashboard</button>
+      <button id="led-view" aria-pressed="false">LED Board</button>
+    </div>
+    <label class="toggle">
+      <input type="checkbox" id="auto">
+      Auto-page every 15 seconds
+    </label>
+  </div>
+
+  <section id="grid" aria-label="Aircraft cards"></section>
+
+  <div class="paging">
+    <span id="page-info">Waiting for aircraft</span>
+    <div class="page-buttons">
+      <button id="previous">Previous</button>
+      <button id="next">Next</button>
+    </div>
+  </div>
+
+  <p id="error" role="status"></p>
+
+  <footer>
+    <div>
+      <div id="observed">Waiting for first observation</div>
+      <div id="credits">OpenSky credits remaining: waiting for data</div>
+      <div>OpenSky Network · Data fetched every 30 seconds</div>
+    </div>
+    <div class="foot-right">
+      Distances from <span class="location-name">Seattle, WA</span>.<br>
+      Altitude is barometric. Routes and aircraft models are not included.
+    </div>
+  </footer>
+</main>
+
+<script>
+"use strict";
+
+const $ = id => document.getElementById(id);
+
+/* Each character has seven rows, with five bits per row. */
+const FONT = {
+  "A": [14,17,17,31,17,17,17],
+  "B": [30,17,17,30,17,17,30],
+  "C": [14,17,16,16,16,17,14],
+  "D": [30,17,17,17,17,17,30],
+  "E": [31,16,16,30,16,16,31],
+  "F": [31,16,16,30,16,16,16],
+  "G": [14,17,16,23,17,17,15],
+  "H": [17,17,17,31,17,17,17],
+  "I": [14,4,4,4,4,4,14],
+  "J": [7,2,2,2,18,18,12],
+  "K": [17,18,20,24,20,18,17],
+  "L": [16,16,16,16,16,16,31],
+  "M": [17,27,21,21,17,17,17],
+  "N": [17,25,21,19,17,17,17],
+  "O": [14,17,17,17,17,17,14],
+  "P": [30,17,17,30,16,16,16],
+  "Q": [14,17,17,17,21,18,13],
+  "R": [30,17,17,30,20,18,17],
+  "S": [15,16,16,14,1,1,30],
+  "T": [31,4,4,4,4,4,4],
+  "U": [17,17,17,17,17,17,14],
+  "V": [17,17,17,17,17,10,4],
+  "W": [17,17,17,21,21,21,10],
+  "X": [17,17,10,4,10,17,17],
+  "Y": [17,17,10,4,4,4,4],
+  "Z": [31,1,2,4,8,16,31],
+  "0": [14,17,19,21,25,17,14],
+  "1": [4,12,4,4,4,4,14],
+  "2": [14,17,1,2,4,8,31],
+  "3": [30,1,1,14,1,1,30],
+  "4": [2,6,10,18,31,2,2],
+  "5": [31,16,16,30,1,1,30],
+  "6": [14,16,16,30,17,17,14],
+  "7": [31,1,2,4,8,8,8],
+  "8": [14,17,17,14,17,17,14],
+  "9": [14,17,17,15,1,1,14],
+  "-": [0,0,0,31,0,0,0],
+  " ": [0,0,0,0,0,0,0],
+  "?": [14,17,1,2,4,0,4]
+};
+
+let state = {
+  flights: [],
+  updated: null,
+  error: null,
+  remaining: null
+};
+let orderedIds = [];
+let page = 0;
+let disconnected = false;
+let boardLocation = {name: "Seattle, WA", radiusMiles: 25};
+let loading = false;
+let autoTimer = null;
+let view = "dashboard";
+
+try {
+  view = localStorage.getItem("flight-board-view") === "led"
+    ? "led" : "dashboard";
+} catch {}
+
+function escapeText(value) {
+  return String(value).replace(/[&<>"']/g, character => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;"
+  }[character]));
+}
+
+function orderedFlights() {
+  const byId = new Map(state.flights.map(flight => [flight.id, flight]));
+  return orderedIds.map(id => byId.get(id)).filter(Boolean);
+}
+
+function measurementMarkup(value) {
+  const text = String(value ?? "Unavailable");
+  const match = text.match(/^(.+?)\s+(ft|kt|mi)$/i);
+
+  if (!match) {
+    return `<div class="value">
+      <span class="unavailable">${escapeText(text)}</span>
+    </div>`;
+  }
+
+  return `<div class="value">
+    <span class="number">${escapeText(match[1])}</span>
+    <span class="unit">${escapeText(match[2])}</span>
+  </div>`;
+}
+
+function paintCallsigns() {
+  if (view !== "led") return;
+
+  document.querySelectorAll(".callsign").forEach(element => {
+    const text = element.querySelector(".plain").textContent.toUpperCase();
+    const canvas = element.querySelector("canvas");
+
+    // Two empty columns separate each 5-column character.
+    const columns = Math.max(5, text.length * 7 - 2);
+    const available = Math.max(1, element.clientWidth);
+    const pitch = Math.max(
+      1,
+      Math.min(7, Math.floor((available - 4) / columns))
+    );
+    const width = columns * pitch + 4;
+    const height = 7 * pitch + 4;
+    const scale = window.devicePixelRatio || 1;
+
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${height}px`;
+    canvas.width = Math.round(width * scale);
+    canvas.height = Math.round(height * scale);
+
+    const context = canvas.getContext("2d");
+    context.setTransform(scale, 0, 0, scale, 0, 0);
+    context.fillStyle = "#94efa5";
+
+    [...text].forEach((character, characterIndex) => {
+      const rows = FONT[character] || FONT["?"];
+
+      rows.forEach((bits, row) => {
+        for (let column = 0; column < 5; column++) {
+          if ((bits & (1 << (4 - column))) === 0) continue;
+
+          const x = 2 + (characterIndex * 7 + column + 0.5) * pitch;
+          const y = 2 + (row + 0.5) * pitch;
+
+          context.beginPath();
+          context.arc(x, y, pitch * 0.32, 0, Math.PI * 2);
+          context.fill();
+        }
+      });
+    });
+  });
+}
+
+function renderCards() {
+  const flights = orderedFlights();
+  const pages = Math.max(1, Math.ceil(flights.length / 4));
+  page = Math.max(0, Math.min(page, pages - 1));
+
+  const start = page * 4;
+  const selected = flights.slice(start, start + 4);
+
+  const cards = selected.map(flight => `
+    <article class="card" aria-label="Aircraft ${escapeText(flight.callsign)}">
+      <div class="card-top">
+        <span>ICAO ${escapeText(flight.id.toUpperCase())}</span>
+        <span class="tag">IN RANGE</span>
+      </div>
+
+      <div class="callsign">
+        <span class="plain">${escapeText(flight.callsign)}</span>
+        <canvas aria-hidden="true"></canvas>
+      </div>
+
+      <div class="aircraft-note">Broadcast callsign / aircraft identifier</div>
+
+      <div class="metrics">
+        <div>
+          <div class="label">ALTITUDE</div>
+          ${measurementMarkup(flight.altitude)}
+        </div>
+        <div>
+          <div class="label">SPEED</div>
+          ${measurementMarkup(flight.speed)}
+        </div>
+        <div>
+          <div class="label">DISTANCE</div>
+          ${measurementMarkup(flight.distance)}
+        </div>
+      </div>
+    </article>
+  `);
+
+  while (cards.length < 4) {
+    const waiting = !state.updated;
+    cards.push(`
+      <article class="card empty">
+        <strong>${waiting ? "Waiting for data" : "No additional aircraft"}</strong>
+        <p>${waiting
+          ? "Connecting to the aircraft feed"
+          : "This slot fills when more aircraft are reported in range"}</p>
+      </article>
+    `);
+  }
+
+  $("grid").innerHTML = cards.join("");
+  $("page-info").textContent = flights.length
+    ? `Viewing ${start + 1}–${Math.min(start + 4, flights.length)} of `
+      + `${flights.length} aircraft · Page ${page + 1} of ${pages}`
+    : state.updated
+      ? "No aircraft with recent positions in range at the last update"
+      : "Waiting for aircraft";
+
+  $("previous").disabled = pages <= 1;
+  $("next").disabled = pages <= 1;
+  paintCallsigns();
+}
+
+function renderStatus() {
+  document.querySelectorAll(".location-name").forEach(node => {
+    node.textContent = boardLocation.name;
+  });
+  $("radius-miles").textContent = `${boardLocation.radiusMiles} miles`;
+  const remaining = state.remaining;
+  const hasCredits =
+    remaining !== null &&
+    remaining !== undefined &&
+    String(remaining).trim() !== "" &&
+    Number.isFinite(Number(remaining));
+
+  $("credits").textContent = hasCredits
+    ? `OpenSky credits remaining: ${Number(remaining).toLocaleString()}`
+      + " · At last successful fetch"
+    : state.updated
+      ? "OpenSky credits remaining: unavailable"
+      : "OpenSky credits remaining: waiting for data";
+
+  $("credits").classList.toggle(
+    "low",
+    hasCredits && Number(remaining) < 500
+  );
+
+  const age = state.updated
+    ? Math.max(0, Math.floor(Date.now() / 1000 - state.updated))
+    : null;
+  const stale = age !== null && age > 90;
+  const warning = disconnected || !!state.error || stale;
+
+  $("status").classList.toggle("warning", warning);
+  $("status").textContent = disconnected
+    ? "Local connection lost"
+    : state.error
+      ? "Data source error"
+      : stale
+        ? "Stale observations"
+        : state.updated
+          ? "Live feed · 30-second updates"
+          : "Connecting to local feed…";
+
+  $("observed").textContent = state.updated
+    ? `Observed ${new Date(state.updated * 1000).toLocaleTimeString()} · ${age}s ago`
+    : "Waiting for first observation";
+
+  $("error").textContent = disconnected
+    ? "Cannot reach the local server. Retrying automatically."
+    : state.error || (
+      stale ? "Showing the last available observations; data is out of date." : ""
+    );
+
+  document.querySelectorAll(".tag").forEach(tag => {
+    tag.textContent = warning ? "LAST OBSERVED" : "IN RANGE";
+  });
+}
+
+function setView(nextView) {
+  view = nextView;
+  document.body.classList.toggle("led", view === "led");
+  $("dashboard-view").setAttribute("aria-pressed", String(view === "dashboard"));
+  $("led-view").setAttribute("aria-pressed", String(view === "led"));
+
+  try {
+    localStorage.setItem("flight-board-view", view);
+  } catch {}
+
+  paintCallsigns();
+}
+
+function turnPage(direction) {
+  const pages = Math.max(1, Math.ceil(orderedIds.length / 4));
+  page = (page + direction + pages) % pages;
+  renderCards();
+  renderStatus();
+}
+
+function resetAutoTimer() {
+  clearInterval(autoTimer);
+  autoTimer = null;
+
+  if ($("auto").checked) {
+    autoTimer = setInterval(() => {
+      if (!document.hidden) turnPage(1);
+    }, 15000);
+  }
+}
+
+async function refresh() {
+  if (loading) return;
+  loading = true;
+
+  try {
+    const response = await fetch("/api/flights", {
+      cache: "no-store",
+      signal: AbortSignal.timeout(8000)
+    });
+
+    if (!response.ok) throw new Error("Local server unavailable");
+
+    const incoming = await response.json();
+    if (!Array.isArray(incoming.flights)) throw new Error("Invalid data");
+
+    const available = new Set(incoming.flights.map(flight => flight.id));
+    const kept = orderedIds.filter(id => available.has(id));
+    const seen = new Set(kept);
+
+    for (const flight of incoming.flights) {
+      if (!seen.has(flight.id)) {
+        kept.push(flight.id);
+        seen.add(flight.id);
+      }
+    }
+
+    orderedIds = kept;
+    state = incoming;
+    boardLocation = incoming.location || boardLocation;
+    disconnected = false;
+    renderCards();
+  } catch {
+    disconnected = true;
+  } finally {
+    loading = false;
+    renderStatus();
+  }
+}
+
+$("dashboard-view").addEventListener("click", () => setView("dashboard"));
+$("led-view").addEventListener("click", () => setView("led"));
+
+$("previous").addEventListener("click", () => {
+  turnPage(-1);
+  resetAutoTimer();
+});
+
+$("next").addEventListener("click", () => {
+  turnPage(1);
+  resetAutoTimer();
+});
+
+$("auto").addEventListener("change", resetAutoTimer);
+
+let resizeTimer;
+window.addEventListener("resize", () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(paintCallsigns, 100);
+});
+
+renderCards();
+setView(view);
+renderStatus();
+refresh();
+
+setInterval(refresh, 15000);
+setInterval(renderStatus, 1000);
+</script>
+</body>
+</html>
